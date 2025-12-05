@@ -1,0 +1,8 @@
+html.dark {
+  /* 自定义深色背景颜色 */
+  --el-bg-color-overlay: #205ea1;
+  --el-border-color: #FFFFFF;
+  --el-datepicker-inrange-bg-color: #409eff;
+  --el-border-color-extra-light: #3f8bd6;
+  --el-fill-color-light: #557aaf
+}

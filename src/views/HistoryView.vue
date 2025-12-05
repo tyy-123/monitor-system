@@ -474,11 +474,11 @@ const handleQuery = async () => {
     }
 
     const [startTime, endTime] = timeRange.value;
-    
+
     console.log("查询参数:", {
       monitoringPointCode: currentpPointCode.value,
       startTime,
-      endTime
+      endTime,
     });
 
     // 调用接口获取数据
@@ -487,7 +487,7 @@ const handleQuery = async () => {
       const res = await monitorApi.getTrendCurve({
         monitoringPointCode: currentpPointCode.value,
         startTime: startTime,
-        endTime: endTime
+        endTime: endTime,
       });
       apiData = res || [];
       console.log("接口返回数据:", apiData);
@@ -510,7 +510,6 @@ const handleQuery = async () => {
 
     // 更新图表
     updateChart();
-
   } catch (error) {
     console.error("查询数据失败:", error);
     ElMessage.error("查询数据失败");
@@ -532,11 +531,14 @@ const generateMockData = (startTime, endTime) => {
       monitoringPointCode: currentpPointCode.value,
       monitoringPointName: "模拟监测点",
       temperature: Math.floor(Math.random() * 30) + 10, // 10-40度
-      humidity: Math.floor(Math.random() * 50) + 30,    // 30-80%
-      overIce: Math.floor(Math.random() * 100) + 10,    // 10-110mm
-      underIce: Math.floor(Math.random() * 100) + 5,    // 5-105mm
-      createTime: new Date(time).toISOString().replace('T', ' ').substring(0, 19),
-      orderNum: data.length
+      humidity: Math.floor(Math.random() * 50) + 30, // 30-80%
+      overIce: Math.floor(Math.random() * 100) + 10, // 10-110mm
+      underIce: Math.floor(Math.random() * 100) + 5, // 5-105mm
+      createTime: new Date(time)
+        .toISOString()
+        .replace("T", " ")
+        .substring(0, 19),
+      orderNum: data.length,
     };
     data.push(dataPoint);
   }
@@ -548,7 +550,7 @@ const generateMockData = (startTime, endTime) => {
 const processChartData = (apiData) => {
   if (!apiData || !Array.isArray(apiData)) return [];
 
-  return apiData.map(item => {
+  return apiData.map((item) => {
     const time = new Date(item.createTime);
     const timeStr = time.toLocaleString("zh-CN", {
       month: "2-digit",
@@ -567,7 +569,7 @@ const processChartData = (apiData) => {
       [`param-${currentMonitor.value}-temp`]: item.temperature,
       [`param-${currentMonitor.value}-humi`]: item.humidity,
       [`param-${currentMonitor.value}-ice1`]: item.overIce,
-      [`param-${currentMonitor.value}-ice2`]: item.underIce
+      [`param-${currentMonitor.value}-ice2`]: item.underIce,
     };
   });
 };
@@ -614,15 +616,10 @@ const updateChart = () => {
 
   const series = [];
   const colors = [
-    "#09FFFF",
-    "#ff6b6b",
-    "#4ecdc4",
-    "#45b7d1",
-    "#96ceb4",
-    "#feca57",
-    "#ff9ff3",
-    "#54a0ff",
-    "#5f27cd"
+    "#FF6B6B", // 温度 - 亮红色，在深蓝背景下最醒目
+    "#4ECDC4", // 湿度 - 青色/绿松色，高对比度
+    "#FFE66D", // 上覆冰 - 亮黄色，警告色
+    "#6BFF97", // 下覆冰 - 亮绿色，高可见性
   ];
 
   // 如果没有选中任何参数，显示空图表
@@ -705,8 +702,8 @@ const updateChart = () => {
       data: seriesData,
       smooth: true,
       symbol: "circle",
-      symbolSize: 6,
-      lineStyle: { width: 2 },
+      symbolSize: 8,
+      lineStyle: { width: 4 },
       itemStyle: { color: colors[index % colors.length] },
     });
   });
@@ -735,7 +732,11 @@ const updateChart = () => {
         let result = `<div style="font-size: 14px; margin-bottom: 5px;">${params[0].axisValue}</div>`;
         params.forEach((param) => {
           const value = param.value !== null ? param.value : "N/A";
-          result += `<div>${param.marker} <span style="color: #fff;">${param.seriesName}:</span> <span style="color: #09ffff; font-weight: bold;">${value}${getUnit(param.seriesName)}</span></div>`;
+          result += `<div>${param.marker} <span style="color: #fff;">${
+            param.seriesName
+          }:</span> <span style="color: #09ffff; font-weight: bold;">${value}${getUnit(
+            param.seriesName
+          )}</span></div>`;
         });
         return result;
       },
@@ -759,17 +760,17 @@ const updateChart = () => {
       type: "category",
       data: currentChartData.value.map((item) => item.time),
       axisLine: { lineStyle: { color: "#ccc" } },
-      axisLabel: { color: "#fff", fontSize: 12 },
+      axisLabel: { color: "#fff", fontSize: 16 },
     },
     yAxis: {
       type: "value",
       axisLine: { lineStyle: { color: "#ccc" } },
-      axisLabel: { color: "#fff", fontSize: 12 },
-      splitLine: { 
-        lineStyle: { 
-          color: "rgba(255, 255, 255, 0.1)",
-          type: "dashed"
-        } 
+      axisLabel: { color: "#fff", fontSize: 16 },
+      splitLine: {
+        lineStyle: {
+          color: "rgba(255, 255, 255, 0.3)",
+          type: "dashed",
+        },
       },
     },
     series: series,
@@ -784,7 +785,7 @@ const getEmptyChartOption = () => {
   return {
     backgroundColor: "transparent",
     title: {
-      text: "请选择监测参数",
+      text: "暂无数据",
       textStyle: { color: "#fff" },
       left: "center",
       top: "center",
@@ -799,7 +800,7 @@ const getEmptyChartOption = () => {
       type: "value",
       axisLine: { lineStyle: { color: "#ccc" } },
       axisLabel: { color: "#fff" },
-      splitLine: { lineStyle: { color: "rgba(255, 255, 255, 0.1)" } },
+      splitLine: { lineStyle: { color: "rgba(255, 255, 255, 0.5)" ,type: 'dashed'} },
     },
     series: [],
   };
@@ -818,19 +819,19 @@ const getMonitorHierarchyInfo = () => {
   if (!currentpPointCode.value) {
     return null;
   }
-  
+
   const result = {
     monitoringPoint: null,
     powerLine: null,
-    powerSection: null
+    powerSection: null,
   };
-  
+
   const findHierarchy = (nodes, parent = null, grandParent = null) => {
     if (!nodes || !Array.isArray(nodes)) return false;
-    
+
     for (const node of nodes) {
       if (!node) continue;
-      
+
       // 如果是监测点节点
       if (node.type === "point" && node.pointCode === currentpPointCode.value) {
         result.monitoringPoint = node;
@@ -838,7 +839,7 @@ const getMonitorHierarchyInfo = () => {
         result.powerSection = grandParent;
         return true;
       }
-      
+
       // 如果有子节点，递归查找
       if (node.children && Array.isArray(node.children)) {
         if (findHierarchy(node.children, node, parent)) {
@@ -848,7 +849,7 @@ const getMonitorHierarchyInfo = () => {
     }
     return false;
   };
-  
+
   findHierarchy(treeData.value);
   return result;
 };
@@ -856,11 +857,11 @@ const getMonitorHierarchyInfo = () => {
 // 获取监测点完整路径
 const getMonitorFullPath = () => {
   const hierarchyInfo = getMonitorHierarchyInfo();
-  
+
   if (!hierarchyInfo) {
     return "未选择监测点";
   }
-  
+
   const path = [];
   if (hierarchyInfo.powerSection) {
     path.push(hierarchyInfo.powerSection.label);
@@ -871,7 +872,7 @@ const getMonitorFullPath = () => {
   if (hierarchyInfo.monitoringPoint) {
     path.push(hierarchyInfo.monitoringPoint.label);
   }
-  
+
   return path.join("-");
 };
 
@@ -880,47 +881,47 @@ const handleExportImage = () => {
   if (chartInstance) {
     const imageUrl = chartInstance.getDataURL({
       type: "png",
-      pixelRatio: 2
+      pixelRatio: 2,
     });
     const link = document.createElement("a");
     link.href = imageUrl;
-    link.download = getExportFileName('.png');
+    link.download = getExportFileName(".png");
     link.click();
   }
 };
 
 // 获取导出文件名
-const getExportFileName = (extension = '.xlsx') => {
+const getExportFileName = (extension = ".xlsx") => {
   if (!timeRange.value || timeRange.value.length !== 2) {
     return `监测数据${extension}`;
   }
-  
+
   const [startTime, endTime] = timeRange.value;
-  const start = startTime.replace(/[: ]/g, '-').substring(0, 16);
-  const end = endTime.replace(/[: ]/g, '-').substring(0, 16);
-  const path = getMonitorFullPath().replace(/[<>:"/\\|?*]/g, '-');
-  
+  const start = startTime.replace(/[: ]/g, "-").substring(0, 16);
+  const end = endTime.replace(/[: ]/g, "-").substring(0, 16);
+  const path = getMonitorFullPath().replace(/[<>:"/\\|?*]/g, "-");
+
   return `${start}_${end}(${path})${extension}`;
 };
 
 // 获取选中的列
 const getSelectedColumns = () => {
   const columns = [];
-  
+
   // 根据选中的参数映射到对应的列名
-  if (selectedParams.value.some(param => param.includes('temp'))) {
-    columns.push('temperature');
+  if (selectedParams.value.some((param) => param.includes("temp"))) {
+    columns.push("temperature");
   }
-  if (selectedParams.value.some(param => param.includes('humi'))) {
-    columns.push('humidity');
+  if (selectedParams.value.some((param) => param.includes("humi"))) {
+    columns.push("humidity");
   }
-  if (selectedParams.value.some(param => param.includes('ice1'))) {
-    columns.push('overIce');
+  if (selectedParams.value.some((param) => param.includes("ice1"))) {
+    columns.push("overIce");
   }
-  if (selectedParams.value.some(param => param.includes('ice2'))) {
-    columns.push('underIce');
+  if (selectedParams.value.some((param) => param.includes("ice2"))) {
+    columns.push("underIce");
   }
-  
+
   console.log("选中的列:", columns);
   return columns;
 };
@@ -943,7 +944,7 @@ const handleExportExcel = async () => {
     }
 
     const [startTime, endTime] = timeRange.value;
-    
+
     // 如果没有选中监测点，使用默认值
     if (!currentpPointCode.value) {
       const firstPoint = findFirstPoint();
@@ -966,7 +967,7 @@ const handleExportExcel = async () => {
       monitoringPointCode: currentpPointCode.value,
       startTime,
       endTime,
-      columns
+      columns,
     });
 
     // 调用导出接口
@@ -974,7 +975,7 @@ const handleExportExcel = async () => {
       monitoringPointCode: currentpPointCode.value,
       startTime: startTime,
       endTime: endTime,
-      columns: columns
+      columns: columns,
     });
 
     // 处理导出结果
@@ -984,11 +985,10 @@ const handleExportExcel = async () => {
     } else {
       throw new Error(res?.message || "导出失败");
     }
-
   } catch (error) {
     console.error("导出Excel失败:", error);
     ElMessage.error(error.message || "导出Excel失败");
-    
+
     // 如果接口调用失败，使用模拟导出
     try {
       await handleMockExportExcel();
@@ -1002,16 +1002,15 @@ const handleExportExcel = async () => {
   }
 };
 
-
 // 处理Excel文件响应
 const handleExcelFileResponse = (response) => {
   // 假设接口返回的是Blob数据
   if (response instanceof Blob) {
     const url = window.URL.createObjectURL(response);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.download = getExportFileName('.xlsx');
-    link.style.display = 'none';
+    link.download = getExportFileName(".xlsx");
+    link.style.display = "none";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1028,37 +1027,37 @@ const handleExcelFileResponse = (response) => {
 const handleMockExportExcel = async () => {
   console.log("使用模拟导出Excel");
   try {
-    const XLSX = await import('xlsx');
-    
+    const XLSX = await import("xlsx");
+
     // 重新查询数据用于导出
     const [startTime, endTime] = timeRange.value;
     let exportData = [];
-    
+
     try {
       // 尝试从接口获取数据
       const res = await monitorApi.getTrendCurve({
         monitoringPointCode: currentpPointCode.value,
         startTime: startTime,
-        endTime: endTime
+        endTime: endTime,
       });
       exportData = res || [];
     } catch (error) {
       console.error("获取导出数据失败，使用模拟数据:", error);
       exportData = generateMockData(startTime, endTime);
     }
-    
+
     if (exportData.length === 0) {
       exportData = generateMockData(startTime, endTime);
     }
-    
+
     // 处理导出数据格式
     const processedData = processExportData(exportData);
-    
+
     // 创建Excel工作簿
     const worksheet = XLSX.utils.json_to_sheet(processedData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '监测数据');
-    
+    XLSX.utils.book_append_sheet(workbook, worksheet, "监测数据");
+
     // 设置列宽
     const colWidths = [
       { wch: 20 }, // 时间列
@@ -1067,12 +1066,12 @@ const handleMockExportExcel = async () => {
       { wch: 12 }, // 温度
       { wch: 12 }, // 湿度
       { wch: 12 }, // 上覆冰
-      { wch: 12 }  // 下覆冰
+      { wch: 12 }, // 下覆冰
     ];
-    worksheet['!cols'] = colWidths;
-    
+    worksheet["!cols"] = colWidths;
+
     // 生成Excel文件并下载
-    XLSX.writeFile(workbook, getExportFileName('.xlsx'));
+    XLSX.writeFile(workbook, getExportFileName(".xlsx"));
     ElMessage.success("模拟导出成功");
   } catch (error) {
     console.error("模拟导出失败:", error);
@@ -1083,47 +1082,49 @@ const handleMockExportExcel = async () => {
 // 处理导出数据格式
 const processExportData = (apiData) => {
   if (!apiData || !Array.isArray(apiData)) return [];
-  
+
   const selectedColumns = getSelectedColumns();
   const columnMap = {
-    'temperature': '温度(℃)',
-    'humidity': '湿度(%)',
-    'overIce': '上覆冰(mm)',
-    'underIce': '下覆冰(mm)'
+    temperature: "温度(℃)",
+    humidity: "湿度(%)",
+    overIce: "上覆冰(mm)",
+    underIce: "下覆冰(mm)",
   };
-  
+
   return apiData.map((item, index) => {
     const rowData = {
-      '序号': index + 1,
-      '时间': formatExportTime(item.createTime),
-      '监测点编号': item.monitoringPointCode || currentpPointCode.value,
-      '监测点名称': item.monitoringPointName || '未知监测点'
+      序号: index + 1,
+      时间: formatExportTime(item.createTime),
+      监测点编号: item.monitoringPointCode || currentpPointCode.value,
+      监测点名称: item.monitoringPointName || "未知监测点",
     };
-    
+
     // 添加选中的列
-    selectedColumns.forEach(col => {
+    selectedColumns.forEach((col) => {
       if (item[col] !== undefined) {
         rowData[columnMap[col]] = item[col];
       }
     });
-    
+
     return rowData;
   });
 };
 
 // 格式化导出时间
 const formatExportTime = (timeStr) => {
-  if (!timeStr) return '';
+  if (!timeStr) return "";
   try {
     const date = new Date(timeStr);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).replace(/\//g, '-');
+    return date
+      .toLocaleString("zh-CN", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })
+      .replace(/\//g, "-");
   } catch (error) {
     return timeStr;
   }
@@ -1170,7 +1171,7 @@ watch(
     <div class="layout-container">
       <!-- 左侧树形菜单 -->
       <div class="left-panel">
-        <div class="tree-container">
+         <el-scrollbar class="tree-container">
           <el-tree
             ref="treeRef"
             :data="treeData"
@@ -1181,6 +1182,7 @@ watch(
               children: 'children',
               label: 'label',
             }"
+            :expand-on-click-node="false"
             :current-node-key="currentNodeKey"
             @node-click="handleNodeClick"
             class="custom-tree"
@@ -1200,7 +1202,7 @@ watch(
               </div>
             </template>
           </el-tree>
-        </div>
+        </el-scrollbar>
       </div>
 
       <!-- 右侧内容区域 -->
@@ -1229,14 +1231,14 @@ watch(
               <IconPicture />
               导出图片
             </el-button>
-            <el-button 
-              @click="handleExportExcel" 
+            <el-button
+              @click="handleExportExcel"
               class="export-btn"
               :loading="exportLoading"
               :class="{ 'is-loading': exportLoading }"
             >
               <IconExcel />
-              {{ exportLoading ? '导出中...' : '导出Excel' }}
+              {{ exportLoading ? "导出中..." : "导出Excel" }}
             </el-button>
           </div>
         </div>
@@ -1421,7 +1423,7 @@ watch(
     border: 1px solid #3793c9;
     color: #00569c;
   }
-  
+
   &.is-loading {
     opacity: 0.7;
     pointer-events: none;
