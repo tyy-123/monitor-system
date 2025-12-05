@@ -904,28 +904,88 @@ const getExportFileName = (extension = ".xlsx") => {
   return `${start}_${end}(${path})${extension}`;
 };
 
-// 获取选中的列
-const getSelectedColumns = () => {
-  const columns = [];
 
-  // 根据选中的参数映射到对应的列名
-  if (selectedParams.value.some((param) => param.includes("temp"))) {
-    columns.push("temperature");
-  }
-  if (selectedParams.value.some((param) => param.includes("humi"))) {
-    columns.push("humidity");
-  }
-  if (selectedParams.value.some((param) => param.includes("ice1"))) {
-    columns.push("overIce");
-  }
-  if (selectedParams.value.some((param) => param.includes("ice2"))) {
-    columns.push("underIce");
-  }
 
-  console.log("选中的列:", columns);
-  return columns;
+// 获取所有可导出的列配置
+const getAllExportColumns = async () => {
+  try {
+    const res = await monitorApi.getAllExportColumns();
+    console.log("导出列配置:", res);
+    return res || [];
+  } catch (error) {
+    console.error("获取导出列配置失败:", error);
+    // 返回默认的列配置
+    return [
+      {
+        "columnName": "序号",
+        "propertyName": "orderNum"
+      },
+      {
+        "columnName": "监测点编号",
+        "propertyName": "monitoringPointCode"
+      },
+      {
+        "columnName": "数据采集时间",
+        "propertyName": "createTime"
+      },
+      {
+        "columnName": "温度 (℃)",
+        "propertyName": "temperature"
+      },
+      {
+        "columnName": "湿度 (%)",
+        "propertyName": "humidity"
+      },
+      {
+        "columnName": "上覆冰厚度 (mm)",
+        "propertyName": "overIce"
+      },
+      {
+        "columnName": "下覆冰厚度 (mm)",
+        "propertyName": "underIce"
+      }
+    ];
+  }
 };
 
+// 获取选中的列
+const getSelectedColumns = async () => {
+  try {
+    // 获取所有可导出的列配置
+    const allColumns = await getAllExportColumns();
+    
+    // 前三个是默认列：序号、监测点编号、数据采集时间
+    const defaultColumns = allColumns.slice(0, 3).map(col => col.columnName);
+    
+    // 根据选中的参数映射到对应的列名
+    const dynamicColumns = [];
+    
+    if (selectedParams.value.some((param) => param.includes("temp"))) {
+      const tempColumn = allColumns.find(col => col.propertyName === "temperature");
+      if (tempColumn) dynamicColumns.push(tempColumn.columnName);
+    }
+    if (selectedParams.value.some((param) => param.includes("humi"))) {
+      const humiColumn = allColumns.find(col => col.propertyName === "humidity");
+      if (humiColumn) dynamicColumns.push(humiColumn.columnName);
+    }
+    if (selectedParams.value.some((param) => param.includes("ice1"))) {
+      const ice1Column = allColumns.find(col => col.propertyName === "overIce");
+      if (ice1Column) dynamicColumns.push(ice1Column.columnName);
+    }
+    if (selectedParams.value.some((param) => param.includes("ice2"))) {
+      const ice2Column = allColumns.find(col => col.propertyName === "underIce");
+      if (ice2Column) dynamicColumns.push(ice2Column.columnName);
+    }
+    
+    const columns = [...defaultColumns, ...dynamicColumns];
+    console.log("选中的列:", columns);
+    return columns;
+  } catch (error) {
+    console.error("获取选中列失败:", error);
+    // 出错时返回默认列
+    return ["orderNum", "monitoringPointCode", "createTime"];
+  }
+};
 // 导出Excel
 const handleExportExcel = async () => {
   console.log("导出Excel");
@@ -957,9 +1017,12 @@ const handleExportExcel = async () => {
     }
 
     // 获取选中的列
-    const columns = getSelectedColumns();
-    if (columns.length === 0) {
-      ElMessage.warning("请至少选择一个参数");
+    const columns = await getSelectedColumns();
+    
+    // 检查是否至少选择了一个动态参数（除了默认的三个列之外）
+    const hasDynamicColumns = columns.length > 3;
+    if (!hasDynamicColumns) {
+      ElMessage.warning("请至少选择一个参数（温度、湿度、上覆冰或下覆冰）");
       return;
     }
 
@@ -1000,6 +1063,36 @@ const handleExportExcel = async () => {
     exportLoading.value = false;
     loading.close();
   }
+};
+
+// 处理导出数据格式
+const processExportData = (apiData) => {
+  if (!apiData || !Array.isArray(apiData)) return [];
+
+  return apiData.map((item, index) => {
+    const rowData = {
+      "序号": index + 1,
+      "监测点编号": item.monitoringPointCode || currentpPointCode.value,
+      "数据采集时间": formatExportTime(item.createTime),
+      "监测点名称": item.monitoringPointName || "未知监测点"
+    };
+
+    // 添加选中的动态列
+    if (selectedParams.value.some(param => param.includes("temp")) && item.temperature !== undefined) {
+      rowData["温度 (℃)"] = item.temperature;
+    }
+    if (selectedParams.value.some(param => param.includes("humi")) && item.humidity !== undefined) {
+      rowData["湿度 (%)"] = item.humidity;
+    }
+    if (selectedParams.value.some(param => param.includes("ice1")) && item.overIce !== undefined) {
+      rowData["上覆冰厚度 (mm)"] = item.overIce;
+    }
+    if (selectedParams.value.some(param => param.includes("ice2")) && item.underIce !== undefined) {
+      rowData["下覆冰厚度 (mm)"] = item.underIce;
+    }
+
+    return rowData;
+  });
 };
 
 // 处理Excel文件响应
@@ -1079,36 +1172,6 @@ const handleMockExportExcel = async () => {
   }
 };
 
-// 处理导出数据格式
-const processExportData = (apiData) => {
-  if (!apiData || !Array.isArray(apiData)) return [];
-
-  const selectedColumns = getSelectedColumns();
-  const columnMap = {
-    temperature: "温度(℃)",
-    humidity: "湿度(%)",
-    overIce: "上覆冰(mm)",
-    underIce: "下覆冰(mm)",
-  };
-
-  return apiData.map((item, index) => {
-    const rowData = {
-      序号: index + 1,
-      时间: formatExportTime(item.createTime),
-      监测点编号: item.monitoringPointCode || currentpPointCode.value,
-      监测点名称: item.monitoringPointName || "未知监测点",
-    };
-
-    // 添加选中的列
-    selectedColumns.forEach((col) => {
-      if (item[col] !== undefined) {
-        rowData[columnMap[col]] = item[col];
-      }
-    });
-
-    return rowData;
-  });
-};
 
 // 格式化导出时间
 const formatExportTime = (timeStr) => {

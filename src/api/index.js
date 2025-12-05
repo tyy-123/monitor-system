@@ -30,6 +30,11 @@ export const monitorApi = {
   // 导出趋势曲线数据
   exportCurve(data) {
     return request.post('/api/export/trendCurve', data,{responseType: 'blob',})
+  },
+
+    // 导出趋势曲线数据
+  getAllExportColumns() {
+    return request.post('/api/export/getAllExportColumns')
   }
 }
 
