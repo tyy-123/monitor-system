@@ -26,17 +26,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true, // 允许跨域
           secure: false, // 如果是https接口，需要配置这个参数
           rewrite: (path) => path.replace(/^\/api/, '/api'),
-          configure: (proxy) => {
-            proxy.on('error', (err, req, res) => {
-              console.log('代理错误:', err);
-            });
-            proxy.on('proxyReq', (proxyReq, req, res) => {
-              console.log('代理请求:', req.method, req.url, '->', proxyReq.path);
-            });
-            proxy.on('proxyRes', (proxyRes, req, res) => {
-              console.log('代理响应:', proxyRes.statusCode, req.url);
-            });
-          }
+        },
+         '/config': {
+          target: env.VUE_APP_BASE_API, // 后端API地址
+          changeOrigin: true, // 允许跨域
+          secure: false
         }
       }
     },

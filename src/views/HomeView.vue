@@ -20,6 +20,23 @@ const componentStyles = ref({});
 const loading = ref(false);
 // 轮询定时器
 let pollInterval = null;
+// 轮询间隔（分钟）
+let pollingInterval = 5; // 默认5分钟
+
+// 获取轮询时间配置
+const fetchPollingConfig = async () => {
+  try {
+    const response = await monitorApi.getPolling();
+    if (response && response.interval) {
+      pollingInterval = response.interval;
+      console.log(`轮询间隔设置为: ${pollingInterval} ${response.unit || '分钟'}`);
+    }
+  } catch (error) {
+    console.error('获取轮询配置失败:', error);
+    // 使用默认值5分钟
+    pollingInterval = 5;
+  }
+};
 
 // 计算所有组件在屏幕上的位置
 const calculateAllPositions = () => {
@@ -159,18 +176,21 @@ const fetchMonitorDetails = async (points) => {
 };
 
 // 轮询获取最新数据
-const startPollingData = () => {
+const startPollingData = async () => {
+  // 先获取轮询配置
+  await fetchPollingConfig();
+  
   // 先停止已有的轮询
   if (pollInterval) {
     clearInterval(pollInterval);
   }
   
-  // 每5分钟刷新一次
+  // 使用接口返回的轮询间隔
   pollInterval = setInterval(async () => {
     if (monitorPointData.value.length > 0) {
       await fetchMonitorDetails(monitorPointData.value);
     }
-  }, 5 * 60 * 1000); // 5分钟
+  }, pollingInterval * 60 * 1000); // 将分钟转换为毫秒
 };
 
 
@@ -179,7 +199,7 @@ onMounted(async () => {
   await fetchAllMonitorPoints();
   
   // 开始轮询
-  startPollingData();
+  await startPollingData();
   
   // 计算位置
   if (imageRef.value) {
@@ -205,8 +225,6 @@ onUnmounted(() => {
   }
 });
 
-// 添加一个手动刷新的方法，可以通过按钮调用
-// 如果需要，可以添加一个刷新按钮
 </script>
 
 <template>
@@ -239,7 +257,7 @@ onUnmounted(() => {
     
     <!-- 渲染监控点组件 -->
     <MonitorPoint 
-      v-for="point in monitorPointData" 
+      v-for="point in monitorPointData?.slice(0,2)" 
       :key="point.id"
       class="fixed-component" 
       :style="componentStyles[point.id]"

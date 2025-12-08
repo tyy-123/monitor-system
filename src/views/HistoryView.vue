@@ -24,7 +24,7 @@ const currentpPointCode = ref("");
 // 当前选中的参数列表
 const selectedParams = ref([]);
 // 时间范围
-const timeRange = ref(["2023-12-11 00:00:00", "2023-12-11 23:59:59"]);
+const timeRange = ref(["2025-12-05 00:00:00", "2025-12-05 23:59:59"]);
 // 图表实例
 let chartInstance = null;
 // 当前显示的图表数据

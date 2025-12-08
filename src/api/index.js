@@ -32,9 +32,14 @@ export const monitorApi = {
     return request.post('/api/export/trendCurve', data,{responseType: 'blob',})
   },
 
-    // 导出趋势曲线数据
+  // 导出趋势曲线数据
   getAllExportColumns() {
     return request.post('/api/export/getAllExportColumns')
+  },
+
+  // 获取监测点最新数据轮询参数
+  getPolling() {
+    return request.get('/config/get/polling')
   }
 }
 
