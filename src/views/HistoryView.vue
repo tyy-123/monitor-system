@@ -494,13 +494,13 @@ const handleQuery = async () => {
     } catch (error) {
       console.error("调用接口失败:", error);
       // 如果接口调用失败，使用模拟数据
-      apiData = generateMockData(startTime, endTime);
+      apiData = [];
       console.log("使用模拟数据:", apiData);
     }
 
     // 如果接口返回空数据，使用模拟数据
     if (!apiData || apiData.length === 0) {
-      apiData = generateMockData(startTime, endTime);
+      apiData = [];
       console.log("接口返回空数据，使用模拟数据:", apiData);
     }
 
@@ -594,6 +594,7 @@ const initChart = () => {
 };
 
 // 更新图表数据
+// 在 updateChart 函数中，修改 option 配置
 const updateChart = () => {
   if (!chartInstance || !chartInitialized.value) {
     console.log("图表实例未初始化，跳过更新");
@@ -616,11 +617,21 @@ const updateChart = () => {
 
   const series = [];
   const colors = [
-    "#FF6B6B", // 温度 - 亮红色，在深蓝背景下最醒目
-    "#4ECDC4", // 湿度 - 青色/绿松色，高对比度
-    "#FFE66D", // 上覆冰 - 亮黄色，警告色
-    "#6BFF97", // 下覆冰 - 亮绿色，高可见性
+    "#FF6B6B", // 温度 - 亮红色
+    "#4ECDC4", // 湿度 - 青色
+    "#FFE66D", // 上覆冰 - 亮黄色
+    "#6BFF97", // 下覆冰 - 亮绿色
   ];
+  
+  // 判断选中的参数类型
+  const hasTemperature = selectedParams.value.some(param => param.includes("temp"));
+  const hasHumidity = selectedParams.value.some(param => param.includes("humi"));
+  const hasOverIce = selectedParams.value.some(param => param.includes("ice1"));
+  const hasUnderIce = selectedParams.value.some(param => param.includes("ice2"));
+  
+  // 判断需要哪些Y轴
+  const needLeftYAxis = hasOverIce || hasUnderIce; // 左Y轴：覆冰数据
+  const needRightYAxis = hasTemperature || hasHumidity; // 右Y轴：温湿度数据
 
   // 如果没有选中任何参数，显示空图表
   if (!selectedParams.value || selectedParams.value.length === 0) {
@@ -649,6 +660,7 @@ const updateChart = () => {
     let pointInfo = null;
     let paramName = "";
     let dataKey = "";
+    let yAxisIndex = 0; // 默认使用左Y轴
 
     for (const points of Object.values(pointDataMap.value)) {
       if (points && Array.isArray(points)) {
@@ -663,23 +675,31 @@ const updateChart = () => {
       console.log("未找到监测点信息，pointId:", pointId);
       return;
     }
-
+    let lineType = 'solid'
     switch (paramType) {
       case "temp":
         paramName = "温度";
         dataKey = "temperature";
+        yAxisIndex = 1; // 右Y轴
+        lineType = 'dashed'
         break;
       case "humi":
         paramName = "湿度";
         dataKey = "humidity";
+        yAxisIndex = 1; // 右Y轴
+        lineType = 'dashed'
         break;
       case "ice1":
         paramName = "上覆冰";
         dataKey = "overIce";
+        yAxisIndex = 0; // 左Y轴
+        lineType = 'solid'
         break;
       case "ice2":
         paramName = "下覆冰";
         dataKey = "underIce";
+        yAxisIndex = 0; // 左Y轴
+        lineType = 'solid'
         break;
       default:
         console.log("未知参数类型:", paramType);
@@ -703,8 +723,15 @@ const updateChart = () => {
       smooth: true,
       symbol: "circle",
       symbolSize: 8,
-      lineStyle: { width: 4 },
-      itemStyle: { color: colors[index % colors.length] },
+      lineStyle: { 
+        width: 2,
+        color: colors[index % colors.length],
+        type: lineType
+      },
+      itemStyle: { 
+        color: colors[index % colors.length] 
+      },
+      yAxisIndex: yAxisIndex // 指定使用哪个Y轴
     });
   });
 
@@ -715,68 +742,150 @@ const updateChart = () => {
     return;
   }
 
-  const option = {
-    backgroundColor: "transparent",
-    title: {
-      text: `监测图 - ${getMonitorFullPath()}`,
-      textStyle: { color: "#fff", fontSize: 16 },
-      left: "center",
-    },
-    tooltip: {
-      trigger: "axis",
-      backgroundColor: "rgba(0, 0, 0, 0.8)",
-      borderColor: "#09a9ff",
-      borderWidth: 1,
-      textStyle: { color: "#fff" },
-      formatter: function (params) {
-        let result = `<div style="font-size: 14px; margin-bottom: 5px;">${params[0].axisValue}</div>`;
-        params.forEach((param) => {
-          const value = param.value !== null ? param.value : "N/A";
-          result += `<div>${param.marker} <span style="color: #fff;">${
-            param.seriesName
-          }:</span> <span style="color: #09ffff; font-weight: bold;">${value}${getUnit(
-            param.seriesName
-          )}</span></div>`;
-        });
-        return result;
-      },
-    },
-    legend: {
-      data: series.map((s) => s.name),
-      textStyle: { color: "#fff" },
-      right: 10,
-      top: 10,
-      itemWidth: 25,
-      itemHeight: 14,
-    },
-    grid: {
-      left: "3%",
-      right: "4%",
-      bottom: "3%",
-      top: "15%",
-      containLabel: true,
-    },
-    xAxis: {
-      type: "category",
-      data: currentChartData.value.map((item) => item.time),
-      axisLine: { lineStyle: { color: "#ccc" } },
-      axisLabel: { color: "#fff", fontSize: 16 },
-    },
-    yAxis: {
+  // 构建Y轴配置
+  const yAxisConfig = [];
+  
+  // 左Y轴 - 覆冰数据
+  if (needLeftYAxis) {
+    yAxisConfig.push({
       type: "value",
-      axisLine: { lineStyle: { color: "#ccc" } },
-      axisLabel: { color: "#fff", fontSize: 16 },
+      name: "上覆冰/下覆冰(mm)", // 单位
+      nameTextStyle: {
+        color: "#fff",
+        fontSize: 16,
+        padding: [0, 0, 0, 10] // 左内边距
+      },
+      axisLine: { 
+        lineStyle: { 
+          color: "#ccc" 
+        } 
+      },
+      axisLabel: { 
+        color: "#fff", 
+        fontSize: 16 ,
+        formatter: '{value} mm'
+      },
       splitLine: {
         lineStyle: {
           color: "rgba(255, 255, 255, 0.3)",
           type: "dashed",
         },
       },
+      position: "left", // 左边
+      alignTicks: true,
+      type: 'value',
+    });
+  }
+  
+  // 右Y轴 - 温湿度数据
+  if (needRightYAxis) {
+    yAxisConfig.push({
+      type: "value",
+      name: hasTemperature ? "℃" : "%", // 根据参数显示单位
+      nameTextStyle: {
+        color: "#fff",
+        fontSize: 16,
+        padding: [0, 10, 0, 0] // 右内边距
+      },
+      axisLine: { 
+        lineStyle: { 
+          color: "#ccc" 
+        } 
+      },
+      axisLabel: { 
+        color: "#fff", 
+        fontSize: 16 ,
+        formatter: '{value} °C/%'
+      },
+      splitLine: {
+        show: false, // 右Y轴不显示网格线
+      },
+      position: "right", // 右边
+      alignTicks: true,
+      type: 'value',
+    });
+  }
+  
+  // 如果同时有温湿度，需要特殊处理
+  if (hasTemperature && hasHumidity) {
+    // 如果同时有温度和湿度，需要在右Y轴名称中显示两个单位
+    yAxisConfig[1].name = "温度(℃)/湿度(%)";
+  }
+
+  const option = {
+    backgroundColor: "transparent",
+    title: {
+      text: `监测图 - ${getMonitorFullPath()}`,
+      textStyle: { 
+        color: "#fff", 
+        fontSize: 16,
+        fontWeight: 'normal'
+      },
+      left: "center",
+      top: 10
     },
+    tooltip: {
+      trigger: "axis",
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
+      borderColor: "#09a9ff",
+      borderWidth: 1,
+      textStyle: { 
+        color: "#fff" 
+      },
+      formatter: function (params) {
+        let result = `<div style="font-size: 14px; margin-bottom: 5px; color: #09ffff;">${params[0].axisValue}</div>`;
+        params.forEach((param) => {
+          const value = param.value !== null ? param.value.toFixed(2) : "N/A";
+          const unit = param.seriesName.includes("温度") ? "℃" : 
+                      param.seriesName.includes("湿度") ? "%" : 
+                      param.seriesName.includes("覆冰") ? "mm" : "";
+          result += `<div>${param.marker} <span style="color: #fff;">${
+            param.seriesName
+          }:</span> <span style="color: ${param.color}; font-weight: bold;">${value}${unit}</span></div>`;
+        });
+        return result;
+      },
+    },
+    legend: {
+      data: series.map((s) => s.name),
+      textStyle: { 
+        color: "#fff",
+        fontSize: 14
+      },
+      right: 10,
+      top: 10,
+      itemWidth: 25,
+      itemHeight: 14,
+    },
+    grid: {
+      left: needLeftYAxis ? "3%" : "5%",    // 左间距
+      right: needRightYAxis ? "4%" : "5%",  // 右间距
+      bottom: "8%",     // 下间距加大
+      top: "18%",       // 上间距调整
+      containLabel: true
+    },
+    xAxis: {
+      type: "category",
+      data: currentChartData.value.map((item) => item.time),
+      axisLine: { 
+        lineStyle: { 
+          color: "#ccc" 
+        } 
+      },
+      axisLabel: { 
+        color: "#fff", 
+        fontSize: 16,
+       
+      },
+      axisTick: {
+        alignWithLabel: true // 刻度与标签对齐
+      }
+    },
+    yAxis: yAxisConfig, // 使用动态的Y轴配置
     series: series,
   };
 
-  console.log("设置图表选项，系列数量:", series.length);
+  console.log("设置图表选项，系列数量:", series.length, "Y轴数量:", yAxisConfig.length);
   chartInstance.setOption(option, true);
 };
 
@@ -1136,11 +1245,11 @@ const handleMockExportExcel = async () => {
       exportData = res || [];
     } catch (error) {
       console.error("获取导出数据失败，使用模拟数据:", error);
-      exportData = generateMockData(startTime, endTime);
+      exportData = [];
     }
 
     if (exportData.length === 0) {
-      exportData = generateMockData(startTime, endTime);
+      exportData = [];
     }
 
     // 处理导出数据格式

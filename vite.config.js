@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       // 配置代理
+      post:8001,
       proxy: {
         '/api': {
           target: env.VUE_APP_BASE_API, // 后端API地址
