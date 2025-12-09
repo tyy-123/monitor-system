@@ -10,6 +10,8 @@ import { ElMessage, ElLoading } from "element-plus";
 const departmentData = ref([]);
 // 监测点数据映射表 { departmentId: [points] }
 const pointDataMap = ref({});
+// 动态参数配置
+const dynamicParams = ref([]);
 // 树形数据
 const treeData = ref([]);
 
@@ -43,8 +45,16 @@ const getDepartmentData = async () => {
   });
 
   try {
-    const res = await monitorApi.getDepartmentTree();
-    departmentData.value = res;
+    // 同时获取部门数据和参数配置
+    const [departmentRes, paramsRes] = await Promise.all([
+      monitorApi.getDepartmentTree(),
+      monitorApi.getAllExportColumns()
+    ]);
+    
+    departmentData.value = departmentRes;
+    dynamicParams.value = paramsRes || [];
+
+    console.log("获取到的参数配置:", dynamicParams.value);
 
     // 获取所有部门的监测点
     await getAllDepartmentPoints();
@@ -105,6 +115,108 @@ const getAllDepartmentPoints = async () => {
   pointDataMap.value = pointMap;
 };
 
+// 默认参数配置（接口失败时的备用方案）
+const getDefaultParams = (point) => {
+  return [
+    {
+      id: `param-${point.id}-temp`,
+      label: "温度 (℃)",
+      type: "param",
+      pointId: point.id,
+      pointCode: point.pointCode,
+      paramType: "temp",
+      propertyName: "temperature",
+      isLeaf: true,
+      checked: false,
+    },
+    {
+      id: `param-${point.id}-humi`,
+      label: "湿度 (%)",
+      type: "param",
+      pointId: point.id,
+      pointCode: point.pointCode,
+      paramType: "humi",
+      propertyName: "humidity",
+      isLeaf: true,
+      checked: false,
+    },
+    {
+      id: `param-${point.id}-ice1`,
+      label: "上覆冰厚度 (mm)",
+      type: "param",
+      pointId: point.id,
+      pointCode: point.pointCode,
+      paramType: "ice1",
+      propertyName: "overIce",
+      isLeaf: true,
+      checked: false,
+    },
+    {
+      id: `param-${point.id}-ice2`,
+      label: "下覆冰厚度 (mm)",
+      type: "param",
+      pointId: point.id,
+      pointCode: point.pointCode,
+      paramType: "ice2",
+      propertyName: "underIce",
+      isLeaf: true,
+      checked: false,
+    }
+  ];
+};
+
+// 构建监测点参数节点
+const buildMonitorParams = (point) => {
+  if (!dynamicParams.value || dynamicParams.value.length === 0) {
+    console.warn("没有找到参数配置，使用默认参数");
+    return getDefaultParams(point);
+  }
+
+  // 过滤掉不需要显示的列
+  const excludeProperties = ["序号", "orderNum", "监测点编号", "monitoringPointCode", "数据采集时间", "createTime"];
+  const filteredParams = dynamicParams.value.filter(param => 
+    !excludeProperties.includes(param.columnName) && 
+    !excludeProperties.includes(param.propertyName)
+  );
+
+  if (filteredParams.length === 0) {
+    return getDefaultParams(point);
+  }
+
+  return filteredParams.map((param, index) => {
+    // 根据参数类型创建唯一的ID
+    const paramTypeMap = {
+      "温度": "temp",
+      "temperature": "temp",
+      "温度 (℃)": "temp",
+      "湿度": "humi",
+      "humidity": "humi",
+      "湿度 (%)": "humi",
+      "上覆冰": "ice1",
+      "overIce": "ice1",
+      "上覆冰厚度 (mm)": "ice1",
+      "下覆冰": "ice2",
+      "underIce": "ice2",
+      "下覆冰厚度 (mm)": "ice2"
+    };
+
+    const paramType = paramTypeMap[param.propertyName] || paramTypeMap[param.columnName] || `param${index + 1}`;
+    const paramName = param.columnName;
+
+    return {
+      id: `param-${point.id}-${paramType}`,
+      label: paramName,
+      type: "param",
+      pointId: point.id,
+      pointCode: point.pointCode,
+      paramType: paramType, // 保存参数类型用于后续处理
+      propertyName: param.propertyName, // 保存属性名用于数据处理
+      isLeaf: true,
+      checked: false,
+    };
+  });
+};
+
 // 构建树形数据
 const buildTreeData = () => {
   const buildTree = (departments) => {
@@ -141,44 +253,7 @@ const buildTreeData = () => {
             pointId: point.id,
             pointCode: point.pointCode,
             departmentId: dept.id,
-            children: [
-              {
-                id: `param-${point.id}-temp`,
-                label: "温度",
-                type: "param",
-                pointId: point.id,
-                pointCode: point.pointCode,
-                isLeaf: true,
-                checked: false,
-              },
-              {
-                id: `param-${point.id}-humi`,
-                label: "湿度",
-                type: "param",
-                pointId: point.id,
-                pointCode: point.pointCode,
-                isLeaf: true,
-                checked: false,
-              },
-              {
-                id: `param-${point.id}-ice1`,
-                label: "上覆冰",
-                type: "param",
-                pointId: point.id,
-                pointCode: point.pointCode,
-                isLeaf: true,
-                checked: false,
-              },
-              {
-                id: `param-${point.id}-ice2`,
-                label: "下覆冰",
-                type: "param",
-                pointId: point.id,
-                pointCode: point.pointCode,
-                isLeaf: true,
-                checked: false,
-              },
-            ],
+            children: buildMonitorParams(point), // 动态构建参数节点
           }));
         }
 
@@ -630,8 +705,8 @@ const updateChart = () => {
   const hasUnderIce = selectedParams.value.some(param => param.includes("ice2"));
   
   // 判断需要哪些Y轴
-  const needLeftYAxis = hasOverIce || hasUnderIce; // 左Y轴：覆冰数据
-  const needRightYAxis = hasTemperature || hasHumidity; // 右Y轴：温湿度数据
+  const needLeftYAxis = true; // 左Y轴：覆冰数据
+  const needRightYAxis = true; // 右Y轴：温湿度数据
 
   // 如果没有选中任何参数，显示空图表
   if (!selectedParams.value || selectedParams.value.length === 0) {
@@ -675,31 +750,27 @@ const updateChart = () => {
       console.log("未找到监测点信息，pointId:", pointId);
       return;
     }
-    let lineType = 'solid'
+
     switch (paramType) {
       case "temp":
         paramName = "温度";
         dataKey = "temperature";
         yAxisIndex = 1; // 右Y轴
-        lineType = 'dashed'
         break;
       case "humi":
         paramName = "湿度";
         dataKey = "humidity";
         yAxisIndex = 1; // 右Y轴
-        lineType = 'dashed'
         break;
       case "ice1":
         paramName = "上覆冰";
         dataKey = "overIce";
         yAxisIndex = 0; // 左Y轴
-        lineType = 'solid'
         break;
       case "ice2":
         paramName = "下覆冰";
         dataKey = "underIce";
         yAxisIndex = 0; // 左Y轴
-        lineType = 'solid'
         break;
       default:
         console.log("未知参数类型:", paramType);
@@ -726,7 +797,7 @@ const updateChart = () => {
       lineStyle: { 
         width: 2,
         color: colors[index % colors.length],
-        type: lineType
+        type: paramType === "temp" || paramType === "humi" ? "dashed" : "solid"
       },
       itemStyle: { 
         color: colors[index % colors.length] 
@@ -781,7 +852,7 @@ const updateChart = () => {
   if (needRightYAxis) {
     yAxisConfig.push({
       type: "value",
-      name: hasTemperature ? "℃" : "%", // 根据参数显示单位
+      name: "温度(℃)/湿度(%)", // 根据参数显示单位
       nameTextStyle: {
         color: "#fff",
         fontSize: 16,
@@ -915,14 +986,6 @@ const getEmptyChartOption = () => {
   };
 };
 
-// 获取单位
-const getUnit = (seriesName) => {
-  if (seriesName.includes("温度")) return "℃";
-  if (seriesName.includes("湿度")) return "%";
-  if (seriesName.includes("覆冰")) return "mm";
-  return "";
-};
-
 // 获取监测点层级信息
 const getMonitorHierarchyInfo = () => {
   if (!currentpPointCode.value) {
@@ -1013,8 +1076,6 @@ const getExportFileName = (extension = ".xlsx") => {
   return `${start}_${end}(${path})${extension}`;
 };
 
-
-
 // 获取所有可导出的列配置
 const getAllExportColumns = async () => {
   try {
@@ -1062,37 +1123,71 @@ const getSelectedColumns = async () => {
   try {
     // 获取所有可导出的列配置
     const allColumns = await getAllExportColumns();
+    console.log("获取到的列配置:", allColumns);
     
-    // 前三个是默认列：序号、监测点编号、数据采集时间
-    const defaultColumns = allColumns.slice(0, 3).map(col => col.columnName);
+    // 过滤掉不需要显示的列
+    const excludeProperties = ["orderNum", "monitoringPointCode", "createTime"];
+    const filteredColumns = allColumns.filter(col => 
+      !excludeProperties.includes(col.propertyName) && 
+      col.propertyName !== "序号" && 
+      col.propertyName !== "监测点编号" && 
+      col.propertyName !== "数据采集时间"
+    );
     
-    // 根据选中的参数映射到对应的列名
-    const dynamicColumns = [];
+    // 获取选中的参数
+    const checkedParams = getCheckedParams();
+    console.log("当前选中的参数ID:", checkedParams);
     
-    if (selectedParams.value.some((param) => param.includes("temp"))) {
-      const tempColumn = allColumns.find(col => col.propertyName === "temperature");
-      if (tempColumn) dynamicColumns.push(tempColumn.columnName);
-    }
-    if (selectedParams.value.some((param) => param.includes("humi"))) {
-      const humiColumn = allColumns.find(col => col.propertyName === "humidity");
-      if (humiColumn) dynamicColumns.push(humiColumn.columnName);
-    }
-    if (selectedParams.value.some((param) => param.includes("ice1"))) {
-      const ice1Column = allColumns.find(col => col.propertyName === "overIce");
-      if (ice1Column) dynamicColumns.push(ice1Column.columnName);
-    }
-    if (selectedParams.value.some((param) => param.includes("ice2"))) {
-      const ice2Column = allColumns.find(col => col.propertyName === "underIce");
-      if (ice2Column) dynamicColumns.push(ice2Column.columnName);
-    }
+    // 从树数据中获取选中的参数配置
+    const selectedConfigs = [];
+    const findParamConfig = (nodes) => {
+      if (!nodes || !Array.isArray(nodes)) return false;
+      
+      for (const node of nodes) {
+        if (node.type === "param" && checkedParams.includes(node.id)) {
+          // 在过滤后的列配置中查找对应的列
+          const matchedColumn = filteredColumns.find(col => 
+            col.propertyName === node.propertyName || 
+            col.columnName.includes(node.label)
+          );
+          
+          if (matchedColumn) {
+            selectedConfigs.push(matchedColumn);
+          } else {
+            // 如果没有找到匹配的配置，使用节点信息创建配置
+            selectedConfigs.push({
+              columnName: node.label,
+              propertyName: node.propertyName || node.paramType
+            });
+          }
+        }
+        
+        if (node.children && Array.isArray(node.children)) {
+          findParamConfig(node.children);
+        }
+      }
+    };
     
-    const columns = [...defaultColumns, ...dynamicColumns];
+    findParamConfig(treeData.value);
+    
+    // 确保包含必需的列
+    const requiredColumns = allColumns.filter(col => 
+      col.propertyName === "monitoringPointCode" || 
+      col.columnName === "监测点编号" ||
+      col.propertyName === "createTime" || 
+      col.columnName === "数据采集时间"
+    );
+    
+    const columns = [...requiredColumns, ...selectedConfigs];
     console.log("选中的列:", columns);
     return columns;
   } catch (error) {
     console.error("获取选中列失败:", error);
     // 出错时返回默认列
-    return ["orderNum", "monitoringPointCode", "createTime"];
+    return [
+      { columnName: "监测点编号", propertyName: "monitoringPointCode" },
+      { columnName: "数据采集时间", propertyName: "createTime" }
+    ];
   }
 };
 // 导出Excel
@@ -1452,7 +1547,7 @@ watch(
 
   .tree-container {
     height: 100%;
-    padding: 28px 24px;
+    padding: 28px 20px;
   }
 }
 
